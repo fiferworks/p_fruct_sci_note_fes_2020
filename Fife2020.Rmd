@@ -2,8 +2,8 @@
 pagetitle: "scientific_notes"
 output: html_document
 #output: word_document
-bibliography: 'Fife2020.bib'
-csl: 'j_med_entomol.csl'
+bibliography: 'bib/Fife2020.bib'
+csl: 'csl/j_med_entomol.csl'
 #always_allow_html: true
 ---
 ```{r global_options, include=FALSE}
@@ -17,6 +17,7 @@ pkgs <-
   c(
     'tidyverse',
     'sf',
+    'lubridate',
     'ggplot2',
     'leaflet',
     'mapview',
@@ -30,9 +31,43 @@ pkgs <-
     "readxl"
   )
 
+#installs missing packages
+nu_pkgs <- pkgs[!(pkgs %in% installed.packages()[, "Package"])]
+if (length(nu_pkgs))
+  install.packages(nu_pkgs)
+
 #loading required packages
 lapply(pkgs, library, character.only = TRUE)
-rm(pkgs)
+rm(pkgs, nu_pkgs)
+
+# ####GETTING REQUIRED FONTS####
+#telling R the path where the fonts are located
+font_paths('fonts')
+
+#imports the font Gill Sans MT as the font family 'gill_sans'
+font_add(
+  family = 'gill_sans',
+  regular = "GIL_____.TTF",
+  bold = "GILB____.TTF",
+  italic = "GILBI___.TTF",
+  bolditalic = "GILI____.TTF"
+)
+
+#imports the font Garamond MT as the font family 'garamond'
+font_add(
+  family = 'garamond',
+  regular = "AGaramondPro-Regular.otf",
+  bold = "AGaramondPro-Bold.otf",
+  italic = "AGaramondPro-BoldItalic.otf",
+  bolditalic = "AGaramondPro-Italic.otf"
+)
+
+# #uncommment and run to make sure it worked
+# #it should list "gill_sans" and "garamond"
+# font_families()
+
+showtext_auto()
+
 
 #setting up captions for use in the document
 fig_nums <- captioner::captioner()
@@ -43,15 +78,15 @@ citef <- pryr::partial(fig_nums, display = "cite")
 ####MITE SURVEY ANALYSIS####
 
 ####READING IN THE REQUIRED FILES####
-df <- read_xlsx('all_mites_survey.xlsx')
+df <- read_xlsx('data/all_mites_survey.xlsx')
 
 #making sure certain columns are considered as factors
 df$p_fructiphilus <- as.factor(df$p_fructiphilus)
-df$month <- as.factor(df$month)
+df$month <- month(df$date, label = TRUE, abbr = TRUE)
 
 #focusing on mites in Florida
 #filters out 'NAs'
-df_fl <- filter(df, df$eriophyoids >= '0')
+df_fl <- filter(df, df$eriophyoids >= 0)
 
 #filters out eriophyoids which aren't P. fructiphilus
 df_fl <- filter(df_fl, df_fl$p_fructiphilus == 'Yes')
@@ -65,10 +100,10 @@ df_fl <- filter(df_fl, df_fl$county == 'Leon')
 ####DROPS A SPECIFIC SITE WHERE MITES COULD NOT BE VERIFIED####
 df_fl <- filter(df_fl, df_fl$id != 'James 114')
 
-#filtering out the original sites
+#original sites
 feb_sites <- filter(df_fl, df_fl$month == 'Feb')
 
-#and the second survey
+#and the same sites from the second survey
 j_1 <- filter(df_fl, df_fl$id == 'FSU 4')
 j_2 <- filter(df_fl, df_fl$id == 'FSU 14')
 j_3 <- filter(df_fl, df_fl$id == 'FSU 15')
@@ -79,10 +114,11 @@ j_5 <- filter(df_fl, df_fl$id == 'FSU 17')
 jul_sites <- bind_rows(j_1, j_2, j_3, j_4, j_5)
 
 #t-test
-p <- t.test(feb_sites$eriophyoids, jul_sites$eriophyoids, paired = T)
+p <-
+  t.test(feb_sites$eriophyoids, jul_sites$eriophyoids, paired = T)
 p
 #cleanup
-rm(df, df_fl, feb_sites, j_1, j_2, j_3, j_4, j_5, jul_sites)
+rm(df, feb_sites, j_1, j_2, j_3, j_4, j_5, jul_sites)
 
 ```
 
@@ -151,26 +187,20 @@ Acknowledgments: this research was supported by a grant awarded by the Florida N
 
 
 ```{r, surveymaps, echo=FALSE}
-####SURVEY MAP####
-#reading in the required files
-df <- read_csv('data.csv', col_types = cols())
-
 ####GRAPHING P. FRUCTIPHILUS LOCATIONS IN FLORIDA####
 #makes the dataframe into a spatial dataframe
-emites <-
-  st_as_sf(df,
+df_fl <-
+  st_as_sf(df_fl,
            coords = c("longitude", "latitude"),
            crs = 4326)
 
 ####COMPARING POPULATIONS OVER TIME#####
 #subsetting the data for different months to compare trends
-e_feb <- filter(emites, month == 'Feb')
-e_jul <- filter(emites, month == 'Jul')
 
 #map for february
 m_feb <-
   mapview(
-    e_feb,
+    filter(df_fl, month == 'Feb'),
     col.regions = c("#B1B3B6", "#E28F41"),
     alpha.regions = 1,
     zcol = 'p_fructiphilus',
@@ -180,7 +210,7 @@ m_feb <-
 
 #map for july
 m_jul <- mapview(
-  e_jul,
+   filter(df_fl, month == 'Jul'),
   col.regions = c("#B1B3B6", "#E28F41"),
   alpha.regions = 1,
   zcol = 'p_fructiphilus',
@@ -196,7 +226,113 @@ leafsync::sync(m_feb, m_jul, ncol = 2, no.initial.sync = F)
 
 
 ```{r, graphs, echo=FALSE}
-knitr::include_graphics('survey_graph_pub.png')
+#knitr::include_graphics('survey_graph_pub.png')
+
+#makes a list of totals for each month to display on the graphs
+df_fl <- df_fl %>% group_by(month) %>% mutate(
+  totals = sum(eriophyoids),
+  per_plant = mean(eriophyoids),
+  sd = sd(eriophyoids),
+  se = sd(eriophyoids) / sqrt(n()),
+  totals = log(mean(eriophyoids)),
+  se = log(sd(eriophyoids) / sqrt(n())),
+) %>%
+  ungroup()
+
+df_fl$per_plant <- round(df_fl$per_plant, digits = 1)
+
+#renaming columns for nicer graph titles on axes
+df_fl <-
+  rename(df_fl, Month = month, 'Mites per Plant' = per_plant)
+
+#renaming months for better labels on graph
+df_fl$Month <- month(df_fl$date, label = TRUE, abbr = FALSE)
+
+####GRAPH####
+ggplot(data = df_fl,
+       mapping = aes(x = Month, y = `Mites per Plant`, fill = Month)) +
+  geom_bar(stat = 'identity') +
+  geom_errorbar(
+    aes(ymin = `Mites per Plant` - se, ymax = `Mites per Plant` + se),
+    width = 0.5,
+    size = 2.5,
+    position = position_dodge(.9)
+  ) +
+  coord_cartesian(ylim = c(-0.9, 210)) +
+  geom_text(
+    aes(Month, `Mites per Plant`, label = `Mites per Plant`, fill = NULL),
+    size = 40,
+    nudge_y = 50
+  ) +
+  geom_text(
+    stat = "count",
+    aes(label = paste0("n = ", ..count..), y = ..count..),
+    size = 40,
+    nudge_y = 30,
+    data = df_fl
+  ) +
+  theme_tufte(base_size = 100, base_family = "gill_sans") +
+  # ggtitle((expression(
+  #   paste(
+  #     "The Number of ",
+  #     italic("P. fructiphilus"),
+  #     " Found on Roses in Northern Florida"
+  #   )
+  # ))) +
+  theme(legend.position = "none") +
+  theme(
+    plot.title = element_text(
+      size = 100,
+      face = "bold",
+      hjust = 0.1,
+      color = "grey20",
+      family = "garamond"
+    ),
+    axis.text.x = element_text(
+      color = "grey20",
+      size = 140,
+      angle = 0,
+      hjust = .5,
+      vjust = .5,
+      face = "plain"
+    ),
+    axis.text.y = element_text(
+      color = "grey20",
+      size = 80,
+      angle = 0,
+      hjust = 1,
+      vjust = 0,
+      face = "bold"
+    )
+  ) +
+  annotate(
+    geom = "text",
+    size = 60,
+    x = 2,
+    y = 200,
+    label = "***",
+    color = "black"
+  ) +
+  # annotate(
+  #   geom = "text",
+  #   size = 35,
+  #   x = 2,
+  #   y = 200,
+  #   label = "p-value = 0.001",
+  #   color = "black"
+  # ) +
+  scale_fill_manual(values = c("gray", "gray50"))  
+  
+# #saving the file
+  # ggsave(
+  #   'figure/survey_graph_pub.png',
+  #   plot = last_plot(),
+  #   type = "cairo",
+  #   width = 16,
+  #   height = 9,
+  #   scale = 1,
+  #   dpi = 300
+  # )
 ```
 
 `r fig_nums(name = "survey_graph", caption = "Log number of *Phyllocoptes fructiphilus* per rose sample. Samples were taken from sites in Leon County, Florida on February 14 and July 16th, 2019. Asterisks represent significant differences as calculated by pairwise t-tests of the 5 sites tested for *P. fructiphilus* during both months. α = 0.05, p-value = 0.001.")`
