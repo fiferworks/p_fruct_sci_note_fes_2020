@@ -125,18 +125,6 @@ rm(df, feb_sites, j_1, j_2, j_3, j_4, j_5, jul_sites)
 <u>Running head:</u>  
 Scientific Notes  
 
-<u>Membership status:</u>  
-Member Xavier Martini (ID 1588)  
-
-<u>Billing contact:</u>  
-Xavier Martini
-The University of Florida - North Florida Research and Education Center  
-155 Research Road  
-Quincy, 32351, USA  
-Phone: +01 (850) 875-7160  
-E-mail: xmartini\@ufl.edu  
-Include any information (reference number, tax ID, etc.) that you need included on the invoice
-
 **First report of *Phyllocoptes fructiphilus* in Florida**
 
 Austin **Fife**^1^\*, Sam **Bolton**^2^, Mathews **Paret**^3^, and Xavier **Martini**^4^
@@ -156,8 +144,7 @@ Florida, 32611, USA, E-mail: xmartini\@ufl.edu
 *Corresponding author; E-mail: xmartini\@ufl.edu
 
 \pagebreak
-*Phyllocoptes fructiphilus* is a microscopic plant-feeding eriophyid mite. Eriophyoid mites are very host specific [@Skoracka2009; @Oldfield1996c]  and *P. fructiphilus* only feeds on plants in the genus *Rosa* [@Amrine1996]. *P. fructiphilus* is the vector of Rose Rosette Virus (RRV). RRV infection is commonly associated with the following symptoms: witches’ brooms/rosetting, deformed flowers, increased prickle density, elongated shoots, reddened leaves and stems, and increased die-back
-which ultimately kills the rose host [@Amrine1996]. This disease is known as Rose Rosette Disease (RRD). and is the most serious disease of roses, creating millions of dollars of losses for growers. Rose Rosette Disease and the mite have invaded the southeastern united states as they followed the range expansion of the non-native *Rosa multiflora* (Thunb) towards the coast [@Amrine2002; @Otero-Colina2018].
+*Phyllocoptes fructiphilus* Keifer (Acari: Eriophyidae is a microscopic eriophyid mite. Eriophyid mites are very host specific [@Skoracka2009; @Oldfield1996c]  and *P. fructiphilus* feeds only on plants in the genus *Rosa* [@Amrine1996]. *Phyllocoptes fructiphilus* is associated with the rose rosette emaravirus (rose rosette virus) and acts as the only known vector of rose rosette virus. Infection is associated commonly with the following symptoms: witches’ brooms, rosetting, deformed flowers, increased thorn density, elongated shoots, reddened leaves and stems, and increased die-back that ultimately kills the rose host [@Amrine1996]. This disease is known as Rose Rosette Disease (RRD). and is the most serious disease of roses, creating millions of dollars of losses for growers. Rose Rosette Disease and the mite have invaded the southeastern united states as they followed the range expansion of the non-native *Rosa multiflora* (Thunb) towards the coast [@Amrine2002; @Otero-Colina2018].
 
 RRD has been detected in Florida in 2014 on 15 plants; however, the plants were destroyed and *P. fructiphilus* were not detected on the roses at that time [@Babu2014].
 
@@ -201,7 +188,7 @@ df_fl <-
 m_feb <-
   mapview(
     filter(df_fl, month == 'Feb'),
-    col.regions = c("#B1B3B6", "#E28F41"),
+    col.regions = c("#3F3F3F", "#DEDEDE"),
     alpha.regions = 1,
     zcol = 'p_fructiphilus',
     layer.name = 'February',
@@ -210,8 +197,8 @@ m_feb <-
 
 #map for july
 m_jul <- mapview(
-   filter(df_fl, month == 'Jul'),
-  col.regions = c("#B1B3B6", "#E28F41"),
+  filter(df_fl, month == 'Jul'),
+  col.regions = c("#3F3F3F", "#DEDEDE"),
   alpha.regions = 1,
   zcol = 'p_fructiphilus',
   layer.name = 'July',
@@ -229,12 +216,13 @@ leafsync::sync(m_feb, m_jul, ncol = 2, no.initial.sync = F)
 #knitr::include_graphics('survey_graph_pub.png')
 
 #makes a list of totals for each month to display on the graphs
-df_fl <- df_fl %>% group_by(month) %>% mutate(
+df_fl <- df_fl %>% group_by(month) %>% summarize(
   totals = sum(eriophyoids),
   per_plant = mean(eriophyoids),
   sd = sd(eriophyoids),
   se = sd(eriophyoids) / sqrt(n()),
   totals = log(mean(eriophyoids)),
+  n = n(),
   se = log(sd(eriophyoids) / sqrt(n())),
 ) %>%
   ungroup()
@@ -246,7 +234,8 @@ df_fl <-
   rename(df_fl, Month = month, 'Mites per Plant' = per_plant)
 
 #renaming months for better labels on graph
-df_fl$Month <- month(df_fl$date, label = TRUE, abbr = FALSE)
+df_fl$Month <- gsub('Feb', 'February', df_fl$Month)
+df_fl$Month <- gsub('Jul', 'July', df_fl$Month)
 
 ####GRAPH####
 ggplot(data = df_fl,
@@ -265,8 +254,7 @@ ggplot(data = df_fl,
     nudge_y = 50
   ) +
   geom_text(
-    stat = "count",
-    aes(label = paste0("n = ", ..count..), y = ..count..),
+    aes(label = paste0("n = ", n), y = n),
     size = 40,
     nudge_y = 30,
     data = df_fl
